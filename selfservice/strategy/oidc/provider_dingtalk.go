@@ -42,7 +42,7 @@ func (g *ProviderDingTalk) Config() *Configuration {
 }
 
 func (g *ProviderDingTalk) oauth2(ctx context.Context) *oauth2.Config {
-	var endpoint = oauth2.Endpoint{
+	endpoint := oauth2.Endpoint{
 		AuthURL:  "https://login.dingtalk.com/oauth2/auth",
 		TokenURL: "https://api.dingtalk.com/v1.0/oauth2/userAccessToken",
 	}
@@ -67,7 +67,7 @@ func (g *ProviderDingTalk) OAuth2(ctx context.Context) (*oauth2.Config, error) {
 	return g.oauth2(ctx), nil
 }
 
-func (g *ProviderDingTalk) ExchangeOAuth2Token(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+func (g *ProviderDingTalk) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	conf, err := g.OAuth2(ctx)
 	if err != nil {
 		return nil, errors.WithStack(herodot.ErrInternalServerError.WithReasonf("%s", err))
@@ -94,6 +94,7 @@ func (g *ProviderDingTalk) ExchangeOAuth2Token(ctx context.Context, code string,
 	req.Header.Add("Content-Type", "application/json;charset=UTF-8")
 	resp, err := client.Do(req)
 	if err != nil {
+		// g.reg.Logger().WithError(err).WithField("http_request", req).Debug("HTTP request details")
 		return nil, errors.WithStack(herodot.ErrInternalServerError.WithReasonf("%s", err))
 	}
 	defer resp.Body.Close()
@@ -152,6 +153,8 @@ func (g *ProviderDingTalk) Claims(ctx context.Context, exchange *oauth2.Token, _
 		Email     string `json:"email"`
 		ErrMsg    string `json:"message"`
 		ErrCode   string `json:"code"`
+		StateCode string `json:"stateCode"`
+		Mobile    string `json:"mobile"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
@@ -163,11 +166,14 @@ func (g *ProviderDingTalk) Claims(ctx context.Context, exchange *oauth2.Token, _
 	}
 
 	return &Claims{
-		Issuer:   userInfoURL,
-		Subject:  user.OpenId,
-		Nickname: user.Nick,
-		Name:     user.Nick,
-		Picture:  user.AvatarUrl,
-		Email:    user.Email,
+		Issuer:              userInfoURL,
+		Subject:             user.OpenId,
+		Nickname:            user.Nick,
+		Name:                user.Nick,
+		Picture:             user.AvatarUrl,
+		Email:               user.Email,
+		EmailVerified:       user.Email != "",
+		PhoneNumber:         "+" + user.StateCode + user.Mobile,
+		PhoneNumberVerified: user.Mobile != "",
 	}, nil
 }
