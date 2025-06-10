@@ -181,6 +181,7 @@ var supportedProviders = map[string]func(config *Configuration, reg Dependencies
 	"spotify":     NewProviderSpotify,
 	"netid":       NewProviderNetID,
 	"dingtalk":    NewProviderDingTalk,
+	"wechat":      NewProviderWechat,
 	"linkedin":    NewProviderLinkedIn,
 	"linkedin_v2": NewProviderLinkedInV2,
 	"patreon":     NewProviderPatreon,

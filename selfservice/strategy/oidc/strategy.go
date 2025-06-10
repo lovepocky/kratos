@@ -894,6 +894,12 @@ func getAuthRedirectURL(ctx context.Context, provider Provider, req ider, state 
 		opts = append(opts, UpstreamParameters(upstreamParameters)...)
 		opts = append(opts, p.AuthCodeURLOptions(req)...)
 
+		// te, ok := p.(OAuth2TokenExchanger)
+		te, ok := p.(OAuth2AuthCodeURLGen)
+		if ok {
+			return te.AuthCodeURL(c, state, opts...), nil
+		}
+
 		return c.AuthCodeURL(state, opts...), nil
 	case OAuth1Provider:
 		return p.AuthURL(ctx, state)

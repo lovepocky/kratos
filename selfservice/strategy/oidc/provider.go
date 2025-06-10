@@ -43,6 +43,10 @@ type OAuth2TokenExchanger interface {
 	Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error)
 }
 
+type OAuth2AuthCodeURLGen interface {
+	AuthCodeURL(c *oauth2.Config, state string, opts ...oauth2.AuthCodeOption) string
+}
+
 type IDTokenVerifier interface {
 	Verify(ctx context.Context, rawIDToken string) (*Claims, error)
 }
