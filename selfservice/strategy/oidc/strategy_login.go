@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -206,6 +207,20 @@ func (s *Strategy) ProcessLogin(ctx context.Context, w http.ResponseWriter, r *h
 				err = s.d.SessionTokenExchangePersister().MoveToNewFlow(ctx, loginFlow.ID, registrationFlow.ID)
 				if err != nil {
 					return nil, s.HandleError(ctx, w, r, loginFlow, provider.Config().ID, nil, err)
+				}
+
+				// s.d.Logger().Debugf("registrationFlow type: %s, Active: %s", registrationFlow.Type, registrationFlow.Active)
+				if registrationFlow.Type == "api" {
+					// returnTo append with flow-id
+					params := url.Values{}
+					u, err := url.Parse(registrationFlow.ReturnTo)
+					if err != nil {
+						s.d.Logger().Debugf("parse URL failed:", err)
+					}
+					params.Add("registration-flow-id", registrationFlow.ID.String())
+					u.RawQuery = params.Encode()
+					s.d.Logger().Debugf("update returnTo: %s", u.String())
+					registrationFlow.ReturnTo = u.String()
 				}
 
 				registrationFlow.OrganizationID = loginFlow.OrganizationID
