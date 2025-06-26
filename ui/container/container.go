@@ -167,7 +167,16 @@ func (c *Container) Reset(exclude ...string) {
 func (c *Container) ParseError(group node.UiNodeGroup, err error) error {
 	if e := richError(nil); errors.As(err, &e) {
 		if e.StatusCode() == http.StatusBadRequest {
-			c.AddMessage(group, text.NewValidationErrorGeneric(e.Reason()))
+			if e.Reason() == "900002" {
+				text.NewLoginCodeSent()
+				c.AddMessage(group, &text.Message{
+					ID:   900002,
+					Type: text.Info,
+					Text: "code send failed",
+				})
+			} else {
+				c.AddMessage(group, text.NewValidationErrorGeneric(e.Reason()))
+			}
 			return nil
 		}
 		return err

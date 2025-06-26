@@ -36,6 +36,7 @@ type (
 		DispatchMessage(ctx context.Context, msg Message) error
 		UseBackoff(b backoff.BackOff)
 		FailOnDispatchError()
+		FetchMessage(ctx context.Context, msgId uuid.UUID) (*Message, error)
 	}
 
 	Provider interface {
@@ -103,4 +104,8 @@ func (c *courier) watchMessages(ctx context.Context, errChan chan error) {
 		}
 		time.Sleep(wait)
 	}
+}
+
+func (c *courier) FetchMessage(ctx context.Context, msgId uuid.UUID) (*Message, error) {
+	return c.deps.CourierPersister().FetchMessage(ctx, msgId)
 }

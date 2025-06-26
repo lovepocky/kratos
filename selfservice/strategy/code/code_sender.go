@@ -6,6 +6,7 @@ package code
 import (
 	"context"
 	"net/url"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
@@ -436,8 +437,58 @@ func (s *Sender) send(ctx context.Context, via string, t courier.Template) error
 			return errors.WithStack(herodot.ErrInternalServerError.WithReasonf("Expected sms template but got %T", t))
 		}
 
-		_, err = c.QueueSMS(ctx, t)
-		return err
+		msgId, err := c.QueueSMS(ctx, t)
+		if err != nil {
+			return err
+		}
+
+		s.deps.Logger().Debugf("sms message id %s", msgId)
+
+		// 定义轮询参数
+		const pollInterval = 500 * time.Millisecond // 每 500ms 轮询一次
+		const timeout = 10 * time.Second            // 最长等待 10 秒
+
+		// 为轮询循环创建一个带超时的上下文
+		pollCtx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+
+		for {
+			select {
+			case <-pollCtx.Done():
+				// 轮询超时或上下文被取消
+				s.deps.Logger().WithError(pollCtx.Err()).Warnf("SMS message %s 轮询超时或被取消。", msgId)
+				// return errors.WithStack(herodot.ErrInternalServerError.WithReasonf("SMS 消息发送超时或被取消。"))
+				return errors.WithStack(herodot.ErrBadRequest.WithReasonf("900002"))
+			default:
+				// 获取消息状态
+				message, fetchErr := c.FetchMessage(pollCtx, msgId)
+				if fetchErr != nil {
+					s.deps.Logger().WithError(fetchErr).Errorf("无法获取 SMS 消息 %s 的状态。正在重试...", msgId)
+					// 如果获取失败，等待并重试。这可能是临时的数据库问题。
+					time.Sleep(pollInterval)
+					continue
+				}
+
+				// 检查消息状态
+				switch message.Status {
+				case courier.MessageStatusSent:
+					s.deps.Logger().Infof("SMS 消息 %s 已成功发送。", msgId)
+					return nil // 成功！
+				case courier.MessageStatusAbandoned:
+					s.deps.Logger().Errorf("SMS 消息 %s 在重试后被放弃。", msgId)
+					// 如果有，从 dispatch 记录中提取最后一次错误原因
+					return errors.WithStack(herodot.ErrBadRequest.WithReasonf("900002"))
+				case courier.MessageStatusQueued, courier.MessageStatusProcessing:
+					// 消息仍在队列中或正在处理，继续轮询
+					s.deps.Logger().Debugf("SMS 消息 %s 状态为 %s，正在继续轮询。", msgId, message.Status)
+					time.Sleep(pollInterval)
+				default:
+					// 意外状态，记录并继续轮询
+					s.deps.Logger().Warnf("SMS 消息 %s 状态异常 %s。正在继续轮询。", msgId, message.Status)
+					time.Sleep(pollInterval)
+				}
+			}
+		}
 	default:
 		return f.ToUnknownCaseErr()
 	}
