@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -22,8 +23,9 @@ import (
 )
 
 type ProviderWechat struct {
-	config *Configuration
-	reg    Dependencies
+	config            *Configuration
+	reg               Dependencies
+	wechatProviderSub string
 }
 
 var _ OAuth2Provider = (*ProviderWechat)(nil)
@@ -32,9 +34,35 @@ func NewProviderWechat(
 	config *Configuration,
 	reg Dependencies,
 ) Provider {
+	// 獲取 WECHAT_PROVIDER_SUB 環境變量
+	wechatProviderSub, found := os.LookupEnv("WECHAT_PROVIDER_SUB")
+
+	// 定義預設值
+	defaultValue := "unionid"
+
+	// 根據獲取到的值來判斷
+	if found {
+		// 如果環境變量存在，檢查其值
+		if wechatProviderSub == "unionid" || wechatProviderSub == "openid" {
+			// 如果是 unionid 或 openid，則使用該值
+			fmt.Printf("WECHAT_PROVIDER_SUB 環境變量已設置為: %s\n", wechatProviderSub)
+		} else {
+			// 如果存在但值不是 unionid 或 openid，則使用預設值並發出警告
+			fmt.Printf("WECHAT_PROVIDER_SUB 環境變量的值 '%s' 無效，將使用預設值: %s\n", wechatProviderSub, defaultValue)
+			wechatProviderSub = defaultValue
+		}
+	} else {
+		// 如果環境變量不存在，則使用預設值
+		fmt.Printf("WECHAT_PROVIDER_SUB 環境變量未設置，將使用預設值: %s\n", defaultValue)
+		wechatProviderSub = defaultValue
+	}
+
+	fmt.Printf("最終使用的 WECHAT_PROVIDER_SUB: %s\n", wechatProviderSub)
+
 	return &ProviderWechat{
-		config: config,
-		reg:    reg,
+		config:            config,
+		reg:               reg,
+		wechatProviderSub: wechatProviderSub,
 	}
 }
 
@@ -229,9 +257,27 @@ func (g *ProviderWechat) Claims(ctx context.Context, exchange *oauth2.Token, _ u
 
 	user := respBody
 
+	var userMap2 map[string]interface{}
+	userBytes, err := json.Marshal(user) // 將 struct 序列化為 JSON 字節
+	if err != nil {
+		fmt.Println("Error marshalling user:", err)
+	}
+	err = json.Unmarshal(userBytes, &userMap2) // 將 JSON 字節反序列化為 map
+	if err != nil {
+		fmt.Println("Error unmarshalling to map:", err)
+	}
+
+	var finalID string // 宣告一個變數來儲存結果
+
+	if g.wechatProviderSub == "openid" {
+		finalID = user.OpenId
+	} else {
+		finalID = user.Unionid
+	}
+
 	return &Claims{
 		Issuer:   userInfoURL,
-		Subject:  user.OpenId,
+		Subject:  finalID,
 		Nickname: user.Nickname,
 		Name:     user.Nickname,
 		Picture:  user.Headimgurl,
@@ -239,6 +285,7 @@ func (g *ProviderWechat) Claims(ctx context.Context, exchange *oauth2.Token, _ u
 		// EmailVerified:       false,
 		// PhoneNumber:         "+" + user.StateCode + user.Mobile,
 		// PhoneNumberVerified: user.Mobile != "",
+		RawClaims: userMap2,
 	}, nil
 }
 
