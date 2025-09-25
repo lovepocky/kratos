@@ -861,7 +861,7 @@ func (m *RegistryDefault) PrometheusManager() *prometheus.MetricsManager {
 func (m *RegistryDefault) HTTPClient(_ context.Context, opts ...httpx.ResilientOptions) *retryablehttp.Client {
 	opts = append(opts,
 		httpx.ResilientClientWithLogger(m.Logger()),
-		httpx.ResilientClientWithMaxRetry(2),
+		httpx.ResilientClientWithMaxRetry(0),
 		httpx.ResilientClientWithConnectionTimeout(30*time.Second),
 	)
 
