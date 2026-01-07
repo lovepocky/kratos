@@ -27,7 +27,15 @@ RUN --mount=type=cache,target=/root/.cache/go-build go build -tags sqlite \
   -o /usr/bin/kratos
 
 #########################
-FROM gcr.io/distroless/base-nossl-debian12:nonroot AS runner
+# FROM gcr.io/distroless/base-nossl-debian12:nonroot AS runner
+FROM debian:bullseye-slim AS runner
+
+RUN sed -i -E 's/(deb|security).debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+
+RUN apt update && \
+    apt install -y ca-certificates && \
+    ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone
 
 COPY --from=builder --chown=nonroot:nonroot /var/lib/sqlite /var/lib/sqlite
 COPY --from=builder --chown=nonroot:nonroot /usr/bin/kratos /usr/bin/kratos
