@@ -62,7 +62,7 @@ func (m *Manager) Create(ctx context.Context, w http.ResponseWriter, r *http.Req
 	userAgentLower := strings.ToLower(userAgent)
 	if strings.Contains(userAgentLower, "fuxpixel") {
 		// Use Flutter deep link scheme for FuxPixelLab app
-		if parsedURL, parseErr := url.Parse("flutter://error"); parseErr == nil {
+		if parsedURL, parseErr := url.Parse("https://error"); parseErr == nil {
 			errorURL = parsedURL
 			m.d.Logger().WithField("error_url", errorURL.String()).Debug("Using Flutter deep link for FuxPixelLab app")
 		} else {
