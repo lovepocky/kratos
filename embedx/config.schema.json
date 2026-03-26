@@ -489,7 +489,7 @@
         },
         "provider": {
           "title": "Provider",
-          "description": "Can be one of github, github-app, gitlab, generic, google, microsoft, discord, salesforce, slack, facebook, auth0, vk, yandex, apple, spotify, netid, dingtalk, patreon.",
+          "description": "Can be one of github, github-app, gitlab, generic, google, microsoft, discord, salesforce, slack, facebook, auth0, vk, yandex, apple, spotify, netid, dingtalk, wechat, wechat_mp, patreon.",
           "type": "string",
           "enum": [
             "github",
@@ -510,6 +510,7 @@
             "netid",
             "dingtalk",
             "wechat",
+            "wechat_mp",
             "patreon",
             "line",
             "linkedin",

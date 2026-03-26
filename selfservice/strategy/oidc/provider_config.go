@@ -37,6 +37,8 @@ type Configuration struct {
 	// - spotify
 	// - netid
 	// - dingtalk
+	// - wechat
+	// - wechat_mp
 	// - linkedin
 	// - patreon
 	Provider string `json:"provider"`
@@ -182,6 +184,7 @@ var supportedProviders = map[string]func(config *Configuration, reg Dependencies
 	"netid":       NewProviderNetID,
 	"dingtalk":    NewProviderDingTalk,
 	"wechat":      NewProviderWechat,
+	"wechat_mp":   NewProviderWechatMP,
 	"linkedin":    NewProviderLinkedIn,
 	"linkedin_v2": NewProviderLinkedInV2,
 	"patreon":     NewProviderPatreon,
