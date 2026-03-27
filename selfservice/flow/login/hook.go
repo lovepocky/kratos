@@ -149,6 +149,10 @@ func (e *HookExecutor) PostLoginHook(
 		return err
 	}
 
+	if s.ID == x.EmptyUUID {
+		s.ID = x.NewUUID()
+	}
+
 	c := e.d.Config()
 	// Verify the redirect URL before we do any other processing.
 	returnTo, err := redir.SecureRedirectTo(r,

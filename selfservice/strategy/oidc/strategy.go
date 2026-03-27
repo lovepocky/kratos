@@ -119,6 +119,33 @@ func isForced(req interface{}) bool {
 	return ok && f.IsRefresh()
 }
 
+func mergeTransientPayload(payload json.RawMessage, rawClaims map[string]interface{}) json.RawMessage {
+	if len(rawClaims) == 0 {
+		return payload
+	}
+
+	merged := make(map[string]interface{}, len(rawClaims))
+	for key, value := range rawClaims {
+		merged[key] = value
+	}
+
+	if len(payload) > 0 {
+		var existing map[string]interface{}
+		if err := json.Unmarshal(payload, &existing); err == nil {
+			for key, value := range existing {
+				merged[key] = value
+			}
+		}
+	}
+
+	b, err := json.Marshal(merged)
+	if err != nil {
+		return payload
+	}
+
+	return b
+}
+
 // ConflictingIdentityVerdict encodes the decision on what to do on a oconflict
 // between an existing and a new identity.
 type ConflictingIdentityVerdict int
@@ -520,7 +547,7 @@ func (s *Strategy) HandleCallback(w http.ResponseWriter, r *http.Request, ps htt
 	switch a := req.(type) {
 	case *login.Flow:
 		a.Active = s.ID()
-		a.TransientPayload = cntnr.TransientPayload
+		a.TransientPayload = mergeTransientPayload(cntnr.TransientPayload, claims.RawClaims)
 		if ff, err := s.ProcessLogin(ctx, w, r, a, et, claims, provider, cntnr); err != nil {
 			if errors.Is(err, flow.ErrCompletedByStrategy) {
 				return
@@ -534,7 +561,7 @@ func (s *Strategy) HandleCallback(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	case *registration.Flow:
 		a.Active = s.ID()
-		a.TransientPayload = cntnr.TransientPayload
+		a.TransientPayload = mergeTransientPayload(cntnr.TransientPayload, claims.RawClaims)
 		if ff, err := s.processRegistration(ctx, w, r, a, et, claims, provider, cntnr); err != nil {
 			if ff != nil {
 				s.forwardError(ctx, w, r, ff, err)
@@ -545,7 +572,7 @@ func (s *Strategy) HandleCallback(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	case *settings.Flow:
 		a.Active = sqlxx.NullString(s.ID())
-		a.TransientPayload = cntnr.TransientPayload
+		a.TransientPayload = mergeTransientPayload(cntnr.TransientPayload, claims.RawClaims)
 		sess, err := s.d.SessionManager().FetchFromRequest(ctx, r)
 		if err != nil {
 			s.forwardError(ctx, w, r, a, s.HandleError(ctx, w, r, a, state.ProviderId, nil, err))
