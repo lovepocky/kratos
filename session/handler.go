@@ -29,6 +29,7 @@ import (
 	"github.com/ory/herodot"
 
 	"github.com/ory/kratos/driver/config"
+	"github.com/ory/kratos/identity"
 	"github.com/ory/kratos/x"
 )
 
@@ -43,6 +44,7 @@ type (
 		config.Provider
 		sessiontokenexchange.PersistenceProvider
 		TokenizerProvider
+		identity.PoolProvider
 	}
 	HandlerProvider interface {
 		SessionHandler() *Handler
@@ -81,6 +83,7 @@ func (h *Handler) RegisterAdminRoutes(admin *x.RouterAdmin) {
 	admin.DELETE(RouteSession, h.disableSession)
 
 	admin.GET(AdminRouteIdentitiesSessions, h.listIdentitySessions)
+	admin.POST(AdminRouteIdentitiesSessions, h.createIdentitySession)
 	admin.DELETE(AdminRouteIdentitiesSessions, h.deleteIdentitySessions)
 	admin.PATCH(AdminRouteSessionExtendId, h.adminSessionExtend)
 
@@ -633,6 +636,65 @@ func (h *Handler) listIdentitySessions(w http.ResponseWriter, r *http.Request, p
 
 	x.PaginationHeader(w, *r.URL, total, page, perPage)
 	h.r.Writer().Write(w, r, sess)
+}
+
+// createIdentitySessionResponse is the response body for createIdentitySession.
+//
+// swagger:model createIdentitySessionResponse
+type createIdentitySessionResponse struct {
+	// SessionToken is the token of the newly created session.
+	SessionToken string `json:"session_token"`
+
+	// Session contains the session details.
+	Session *Session `json:"session"`
+}
+
+// swagger:route POST /admin/identities/{id}/sessions identity createIdentitySession
+//
+// # Create a Session for an Identity
+//
+// Creates a new session for the given identity. The session token is returned in the response.
+// This endpoint is intended for internal use and bypasses normal authentication flows.
+//
+//	Schemes: http, https
+//
+//	Security:
+//	  oryAccessToken:
+//
+//	Responses:
+//	  200: createIdentitySessionResponse
+//	  400: errorGeneric
+//	  404: errorGeneric
+//	  default: errorGeneric
+func (h *Handler) createIdentitySession(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	iID, err := uuid.FromString(ps.ByName("id"))
+	if err != nil {
+		h.r.Writer().WriteError(w, r, errors.WithStack(herodot.ErrBadRequest.WithError(err.Error()).WithDebug("could not parse UUID")))
+		return
+	}
+
+	id, err := h.r.IdentityPool().GetIdentity(r.Context(), iID, identity.ExpandDefault)
+	if err != nil {
+		h.r.Writer().WriteError(w, r, err)
+		return
+	}
+
+	sess := NewInactiveSession()
+	sess.CompletedLoginFor(identity.CredentialsTypePassword, identity.AuthenticatorAssuranceLevel1)
+	if err := h.r.SessionManager().ActivateSession(r, sess, id, time.Now().UTC()); err != nil {
+		h.r.Writer().WriteError(w, r, err)
+		return
+	}
+
+	if err := h.r.SessionPersister().UpsertSession(r.Context(), sess); err != nil {
+		h.r.Writer().WriteError(w, r, err)
+		return
+	}
+
+	h.r.Writer().Write(w, r, &createIdentitySessionResponse{
+		SessionToken: sess.Token,
+		Session:      sess,
+	})
 }
 
 // Deleted Session Count
