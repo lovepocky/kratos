@@ -81,7 +81,7 @@ func (s *Sender) SendCode(ctx context.Context, f flow.Flow, id *identity.Identit
 		// address was used to verify the code.
 		//
 		// See also [this discussion](https://github.com/ory/kratos/pull/3456#discussion_r1307560988).
-		rawCode := GenerateCode()
+		rawCode := HardcodedSMSRawCode(address.Via, address.To)
 
 		switch f.GetFlowName() {
 		case flow.RegistrationFlow:
@@ -329,7 +329,7 @@ func (s *Sender) SendVerificationCode(ctx context.Context, f *verification.Flow,
 		return err
 	}
 
-	rawCode := GenerateCode()
+	rawCode := HardcodedVerificationRawCode(address)
 	var code *VerificationCode
 	if code, err = s.deps.VerificationCodePersister().CreateVerificationCode(ctx, &CreateVerificationCodeParams{
 		RawCode:           rawCode,
@@ -427,14 +427,23 @@ func (s *Sender) send(ctx context.Context, via string, t courier.Template) error
 		_, err = c.QueueEmail(ctx, t)
 		return err
 	case f.AddCase(identity.ChannelTypeSMS):
-		c, err := s.deps.Courier(ctx)
-		if err != nil {
-			return err
-		}
-
 		t, ok := t.(courier.SMSTemplate)
 		if !ok {
 			return errors.WithStack(herodot.ErrInternalServerError.WithReasonf("Expected sms template but got %T", t))
+		}
+
+		recipient, err := t.PhoneNumber()
+		if err != nil {
+			return err
+		}
+		if IsHardcodedSMSAddress(identity.ChannelTypeSMS, recipient) {
+			s.deps.Logger().WithField("recipient", recipient).Info("Skipping SMS dispatch for hardcoded verification number.")
+			return nil
+		}
+
+		c, err := s.deps.Courier(ctx)
+		if err != nil {
+			return err
 		}
 
 		msgId, err := c.QueueSMS(ctx, t)
